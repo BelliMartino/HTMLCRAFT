@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>HTMLCRAFT 0.1-alpha</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: 'Consolas', monospace; }
+        canvas { display: block; }
+        
+        /* Interfaccia Utente Unificata */
+        #ui {
+            position: absolute; top: 10px; left: 10px;
+            background: rgba(0, 0, 0, 0.8); color: white;
+            padding: 15px; border-radius: 4px; pointer-events: none;
+            font-size: 13px; line-height: 1.5;
+            border-left: 4px solid #4caf50;
+        }
+        .key { color: #ffeb3b; font-weight: bold; }
+        .stat { color: #4caf50; }
+        .version-text { color: #aaa; font-size: 11px; margin-bottom: 5px; display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <span class="version-text">HTMLCRAFT v0.1-alpha</span>
+        <div>FPS: <span id="fps" class="stat">0</span></div>
+        <div>POS: <span id="coords" class="stat">X: 0, Y: 0, Z: 0</span></div>
+        <div id="status">BLOCCO: <span id="blockName" class="stat">Erba (1)</span></div>
+        <hr style="border: 0; border-top: 1px solid #444; margin: 10px 0;">
+        <div><span class="key">1,2,3</span>: Materiali</div>
+        <div><span class="key">Frecce</span>: Ruota Visuale</div>
+        <div><span class="key">Click</span>: Piazza | <span class="key">Shift+Click</span>: Rompi</div>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB);
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const sun = new THREE.DirectionalLight(0xffffff, 1);
+        sun.position.set(5, 15, 10);
+        scene.add(sun);
+
+        const geo = new THREE.BoxGeometry(1, 1, 1);
+        const mats = {
+            1: { mat: new THREE.MeshStandardMaterial({ color: 0x44aa44 }), name: "Erba (1)" },
+            2: { mat: new THREE.MeshStandardMaterial({ color: 0x8B4513 }), name: "Terra (2)" },
+            3: { mat: new THREE.MeshStandardMaterial({ color: 0x808080 }), name: "Pietra (3)" }
+        };
+        let currentType = 1;
+        let angle = Math.PI / 4;
+
+        let lastTime = performance.now();
+        let frames = 0;
+        const fpsElem = document.getElementById('fps');
+        const coordsElem = document.getElementById('coords');
+
+        for(let x = -4; x <= 4; x++) {
+            for(let z = -4; z <= 4; z++) {
+                const b = new THREE.Mesh(geo, mats[1].mat);
+                b.position.set(x, 0, z);
+                scene.add(b);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === '1') { currentType = 1; document.getElementById('blockName').innerText = mats[1].name; }
+            if (e.key === '2') { currentType = 2; document.getElementById('blockName').innerText = mats[2].name; }
+            if (e.key === '3') { currentType = 3; document.getElementById('blockName').innerText = mats[3].name; }
+            if (e.key === 'ArrowLeft') angle -= 0.15;
+            if (e.key === 'ArrowRight') angle += 0.15;
+        });
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('mousemove', (e) => {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+
+        window.addEventListener('mousedown', (e) => {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children);
+            if (intersects.length > 0) {
+                const target = intersects[0].object;
+                if (e.shiftKey) {
+                    if (target.position.y > 0) scene.remove(target);
+                } else {
+                    const block = new THREE.Mesh(geo, mats[currentType].mat);
+                    block.position.copy(target.position).add(intersects[0].face.normal);
+                    scene.add(block);
+                }
+            }
+        });
+
+        function draw() {
+            requestAnimationFrame(draw);
+            
+            frames++;
+            const now = performance.now();
+            if (now >= lastTime + 1000) {
+                fpsElem.innerText = frames;
+                frames = 0;
+                lastTime = now;
+            }
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children);
+            if (intersects.length > 0) {
+                const p = intersects[0].object.position;
+                coordsElem.innerText = `X: ${p.x.toFixed(0)}, Y: ${p.y.toFixed(0)}, Z: ${p.z.toFixed(0)}`;
+            }
+
+            camera.position.x = Math.cos(angle) * 12;
+            camera.position.z = Math.sin(angle) * 12;
+            camera.position.y = 10;
+            camera.lookAt(0, 2, 0);
+            
+            renderer.render(scene, camera);
+        }
+        draw();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
